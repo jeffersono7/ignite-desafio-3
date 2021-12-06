@@ -9,7 +9,6 @@ defmodule GenReportTest do
   describe "build/1" do
     test "When passing file name return a report" do
       response = GenReport.build(@file_name)
-
       assert response == ReportFixture.build()
     end
 
