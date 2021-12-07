@@ -9,10 +9,57 @@ defmodule GenReport do
 
   def build, do: {:error, "Insira o nome de um arquivo"}
 
-  def build(filename) do
-    filename
-    |> Parser.parse_file()
-    |> calculate_hours()
+  def build(filename) when is_binary(filename), do: build([filename])
+
+  def build(filenames) do
+    filenames
+    |> Task.async_stream(fn filename ->
+      filename
+      |> Parser.parse_file()
+      |> calculate_hours()
+    end)
+    |> Enum.reduce(@initial_report, fn {:ok, elem}, acc -> merge_report(acc, elem) end)
+  end
+
+  defp merge_report(
+         %{
+           "all_hours" => all_hours1,
+           "hours_per_month" => hours_per_month1,
+           "hours_per_year" => hours_per_year1
+         },
+         %{
+           "all_hours" => all_hours2,
+           "hours_per_month" => hours_per_month2,
+           "hours_per_year" => hours_per_year2
+         }
+       ) do
+    %{
+      "all_hours" => sum_values_from_map(all_hours1, all_hours2),
+      "hours_per_month" => merge_map(hours_per_month1, hours_per_month2),
+      "hours_per_year" => merge_map(hours_per_year1, hours_per_year2)
+    }
+  end
+
+  defp merge_map(map1, map2) do
+    case Map.values(map2) do
+      [head | _tail] when is_map(head) ->
+        keys = Map.keys(map1) ++ Map.keys(map2)
+        keys = Enum.uniq(keys)
+
+        for key <- keys, into: %{} do
+          {key, merge_map(Map.get(map1, key, %{}), Map.get(map2, key, %{}))}
+        end
+      [_head | _tail] -> sum_values_from_map(map1, map2)
+    end
+  end
+
+  defp sum_values_from_map(map1, map2) do
+    keys = Map.keys(map1) ++ Map.keys(map2)
+    keys = Enum.uniq(keys)
+
+    for key <- keys, into: %{} do
+      {key, Map.get(map1, key, 0) + Map.get(map2, key, 0)}
+    end
   end
 
   defp calculate_hours(data) do
